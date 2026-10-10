@@ -4,15 +4,19 @@ import os
 
 app = Flask(__name__, template_folder='../frontend/templates')
 
-# Yahan apni CSV file ka exact naam likhein (e.g., 'Garba_Event_Dataset.csv' ya jo bhi aapne rakha hai)
-DATASET_PATH = 'Garba_Event_Dataset - Copy.csv'
+# Dataset path handling for local & Vercel serverless
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATASET_NAME = 'Garba_Event_Dataset - Copy.csv'
+DATASET_PATH = os.path.join(BASE_DIR, DATASET_NAME)
 
 @app.route('/', methods=['GET', 'POST'])
 def dashboard():
-    # CSV file read karna
+    # File exist check to prevent Internal Server Error
+    if not os.path.exists(DATASET_PATH):
+        return f"Error: Dataset file '{DATASET_NAME}' not found at {DATASET_PATH}!", 500
+
     df = pd.read_csv(DATASET_PATH)
 
-    # Agar user naya pass submit kare (Form Input)
     if request.method == 'POST':
         guest_name = request.form['guest_name']
         contact_number = request.form['contact_number']
@@ -22,11 +26,9 @@ def dashboard():
         payment_status = request.form['payment_status']
         check_in_status = request.form['check_in_status']
 
-        # Auto-generate Pass ID
         new_id_num = len(df) + 101
         pass_id = f"GRB-2026-{new_id_num}"
 
-        # Naya row dataframe me add karna
         new_row = {
             'Pass_ID': pass_id,
             'Guest_Name': guest_name,
@@ -39,18 +41,14 @@ def dashboard():
         }
         
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-        
-        # CSV file me save karna
         df.to_csv(DATASET_PATH, index=False)
         return redirect(url_for('dashboard'))
 
-    # Dashboard Metrics Calculations
     total_passes = int(df['Pass_ID'].count())
     total_revenue = int(df['Price_INR'].sum())
     paid_count = int(df[df['Payment_Status'] == 'Paid']['Pass_ID'].count())
     checked_in_count = int(df[df['Check_In_Status'] == 'Checked In']['Pass_ID'].count())
     
-    # Visualizations / Chart Data
     pass_type_counts = df['Pass_Type'].value_counts().to_dict()
     payment_status_counts = df['Payment_Status'].value_counts().to_dict()
     revenue_by_date = df.groupby('Event_Date')['Price_INR'].sum().to_dict()
